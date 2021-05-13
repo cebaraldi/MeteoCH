@@ -1,0 +1,17 @@
+[
+  {
+    "object": "Data",
+    "directorySeparator": "/",
+    "inPath": "/media/datalake/meteoschweiz/",
+    "outPath": "",
+    "pqFile": "MCHData.parquet"
+  },
+  {
+    "object": "Station",
+    "directorySeparator": "/",
+    "inPath": "/media/datalake/meteoschweiz/",
+    "chStationFile": "liste-download-nbcn-d.csv",
+    "outPath": "",
+    "pqFile": "MCHStation.parquet"
+  }
+]
