@@ -3,8 +3,9 @@
     "object": "Data",
     "directorySeparator": "/",
     "inPath": "/media/datalake/meteoschweiz/",
-    "outPath": "",
-    "pqFile": "MCHData.parquet"
+    "outPath": "/media/datalake/",
+    "pqHFile": "MCHHistoricalData.parquet",
+    "pqRFile": "MCHRecentData.parquet"
   },
   {
     "object": "Station",

@@ -1,8 +1,8 @@
 package meteoch
 
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.sql.types.{DateType, DoubleType, IntegerType, StringType,
-  StructField, StructType}
+import org.apache.spark.sql.functions.trim
+import org.apache.spark.sql.types.{DateType, DoubleType, IntegerType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 
 import java.time.LocalDate
@@ -37,11 +37,12 @@ object Data extends App {
   // Load JSON configuration from resources directory
   val cfgJSON = "src/main/resources/cfgXenos_meteoch.json"
   val cfg = spark.read.option("multiLine", true)
-    .json(cfgJSON).toDF().filter('object === "Data")
+    .json(cfgJSON).toDF().filter(trim('object) === "Data")
   val inPath = cfg.select('inPath).as[String].collect()(0)
   //  val chStationFile = cfg.select('chStationFile).as[String].collect()(0)
   val outPath = cfg.select('outPath).as[String].collect()(0)
-  val pqFile = cfg.select('pqFile).as[String].collect()(0)
+  val pqHFile = cfg.select('pqHFile).as[String].collect()(0)
+  val pqRFile = cfg.select('pqRFile).as[String].collect()(0)
 
 
   val dataSchema = StructType(Array(
@@ -67,13 +68,13 @@ object Data extends App {
   // Read data using schema and case class
   val period = List("current", "previous")
   var df: Dataset[CHData] = null
-  var first = true
-  var chDataFile = ""
-  for (l <- lblList) {
-    for (p <- period) {
-      chDataFile = "nbcn-daily_" + l + "_" + p + ".csv"
-      //      println(chDataFile)
-      if (first) {
+  var dfR: Dataset[CHData] = null
+  var dfH: Dataset[CHData] = null
+  for (p <- period) {
+    var firstCanton = true
+    for (l <- lblList) {
+      val chDataFile = s"nbcn-daily_${l}_${p}.csv"
+      if (firstCanton) {
         df = spark.read.schema(dataSchema).
           option("header", "true").
           option("dateFormat", "yyyyMMdd").
@@ -81,7 +82,7 @@ object Data extends App {
           csv(inPath + chDataFile).
           withColumnRenamed("station/location", "wslbl").
           as[CHData]
-        first = !first
+        firstCanton = !firstCanton
       } else {
         df = df.union(spark.read.schema(dataSchema).
           option("header", "true").
@@ -91,13 +92,19 @@ object Data extends App {
           withColumnRenamed("station/location", "wslbl").
           as[CHData])
       }
-    }
-  }
+    } // lblList
+    if (p == "current") dfR = df.cache() else dfH = df.cache()
+  } // period
 
-  // Write a parquet file
-  df.write.mode(SaveMode.Overwrite).parquet(outPath + pqFile)
-  df.show(false)
-  println(df.count)
+  // Write parquet files
+  dfR.write.mode(SaveMode.Overwrite).parquet(outPath + pqRFile)
+  dfR.show(false)
+  println(f"${dfR.count}%,d recent records written to ${outPath + pqRFile}")
 
+  dfH.write.mode(SaveMode.Overwrite).parquet(outPath + pqHFile)
+  dfH.show(false)
+  println(f"${dfH.count}%,d historical records written to ${outPath + pqHFile}")
+
+  spark.catalog.clearCache()
   spark.stop()
 }

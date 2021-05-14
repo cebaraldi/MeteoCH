@@ -1,6 +1,7 @@
 package meteoch
 
 import org.apache.log4j.{Level, Logger}
+import org.apache.spark.sql.functions.trim
 import org.apache.spark.sql.types.{DateType, DoubleType, IntegerType, StringType, StructField, StructType}
 import org.apache.spark.sql.{SaveMode, SparkSession}
 
@@ -28,12 +29,13 @@ object Station extends App {
     appName("MeteoCH Station").
     getOrCreate()
   spark.sparkContext.setLogLevel("WARN")
+
   import spark.implicits._
 
   // Load JSON configuration from resources directory
   val cfgJSON = "src/main/resources/cfgXenos_meteoch.json"
-  val cfg = spark.read.option("multiLine", true)
-    .json(cfgJSON).toDF().filter('object === "Station")
+  val cfg = spark.read.option("multiLine", true).
+    json(cfgJSON).toDF().filter(trim('object) === "Station")
   val inPath = cfg.select('inPath).as[String].collect()(0)
   val chStationFile = cfg.select('chStationFile).as[String].collect()(0)
   val outPath = cfg.select('outPath).as[String].collect()(0)
@@ -41,17 +43,19 @@ object Station extends App {
 
   // Create the schema
   val stationSchema = StructType(Array(
-    StructField("ws", StringType),
-    StructField("wslbl", StringType),
-    StructField("wigosid", StringType),
-    StructField("from", DateType),
-    StructField("height", IntegerType),
-    StructField("coordE", IntegerType),
-    StructField("coordN", IntegerType),
-    StructField("lat", DoubleType),
-    StructField("lon", DoubleType),
-    StructField("climReg", StringType),
-    StructField("canton", StringType)
+    StructField("Station", StringType),
+    StructField("station/location", StringType),
+    StructField("WIGOS-ID", StringType),
+    StructField("Data since", DateType),
+    StructField("Station height m. a. sea level", IntegerType),
+    StructField("CoordinatesE", IntegerType),
+    StructField("CoordinatesN", IntegerType),
+    StructField("Latitude", DoubleType),
+    StructField("Longitude", DoubleType),
+    StructField("Climate region", StringType),
+    StructField("Canton", StringType),
+    StructField("URL Previous years (verified data)", StringType),
+    StructField("URL Current year", StringType)
   ))
 
   // Read data using schema and case class
@@ -59,14 +63,29 @@ object Station extends App {
     option("header", "true").
     option("dateFormat", "dd.MM.yyyy").
     option("sep", ";").
-    csv(inPath + chStationFile).as[CHStation].
-    filter('wigosid.isNotNull).
+    csv(inPath + chStationFile).
+    drop("URL Previous years (verified data)").
+    drop("URL Current year").
+    withColumnRenamed("Station", "ws").
+    withColumnRenamed("station/location", "wslbl").
+    withColumnRenamed("WIGOS-ID", "wigosid").
+    withColumnRenamed("Data since", "from").
+    withColumnRenamed("Station height m. a. sea level", "height").
+    withColumnRenamed("CoordinatesE", "coordE").
+    withColumnRenamed("CoordinatesN", "coordN").
+    withColumnRenamed("Latitude", "lat").
+    withColumnRenamed("Longitude", "lon").
+    withColumnRenamed("Climate region", "climReg").
+    withColumnRenamed("Canton", "canton").
+    filter('wigosid.isNotNull).as[CHStation].
     sort('ws).
     cache()
 
   // Write a parquet file
   df.write.mode(SaveMode.Overwrite).parquet(outPath + pqFile)
-  df.show(df.count.toInt,false)
+  df.show(df.count.toInt, false)
+  println(f"${df.count}%,d records written to ${outPath + pqFile}")
 
+  spark.catalog.clearCache()
   spark.stop()
 }
