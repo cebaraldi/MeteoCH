@@ -26,10 +26,10 @@ object Data extends App {
   Logger.getLogger("org.apache.spark").setLevel(Level.WARN)
 
   // Start spark
-  val spark = SparkSession.builder().
-    master("local[*]").
-    appName("MeteoCH Station").
-    getOrCreate()
+  val spark = SparkSession.builder()
+    .master("local[*]")
+    .appName("MeteoCH Station")
+    .getOrCreate()
   spark.sparkContext.setLogLevel("WARN")
 
   import spark.implicits._
@@ -39,7 +39,6 @@ object Data extends App {
   val cfg = spark.read.option("multiLine", true)
     .json(cfgJSON).toDF().filter(trim('object) === "Data")
   val inPath = cfg.select('inPath).as[String].collect()(0)
-  //  val chStationFile = cfg.select('chStationFile).as[String].collect()(0)
   val outPath = cfg.select('outPath).as[String].collect()(0)
   val pqHFile = cfg.select('pqHFile).as[String].collect()(0)
   val pqRFile = cfg.select('pqRFile).as[String].collect()(0)
@@ -61,9 +60,9 @@ object Data extends App {
   ))
 
   // Read MCHStation.parquet file to loop over wslbl
-  val lblList = spark.read.parquet("MCHStation.parquet").
-    select('wslbl).groupBy('wslbl).count.select('wslbl).
-    as[String].collect().toList
+  val lblList = spark.read.parquet("MCHStation.parquet")
+    .select('wslbl).groupBy('wslbl).count.select('wslbl)
+    .as[String].collect().toList
 
   // Read data using schema and case class
   val period = List("current", "previous")
@@ -75,22 +74,22 @@ object Data extends App {
     for (l <- lblList) {
       val chDataFile = s"nbcn-daily_${l}_${p}.csv"
       if (firstCanton) {
-        df = spark.read.schema(dataSchema).
-          option("header", "true").
-          option("dateFormat", "yyyyMMdd").
-          option("sep", ";").
-          csv(inPath + chDataFile).
-          withColumnRenamed("station/location", "wslbl").
-          as[CHData]
+        df = spark.read.schema(dataSchema)
+          .option("header", "true")
+          .option("dateFormat", "yyyyMMdd")
+          .option("sep", ";")
+          .csv(inPath + chDataFile)
+          .withColumnRenamed("station/location", "wslbl")
+          .as[CHData]
         firstCanton = !firstCanton
       } else {
-        df = df.union(spark.read.schema(dataSchema).
-          option("header", "true").
-          option("dateFormat", "yyyyMMdd").
-          option("sep", ";").
-          csv(inPath + chDataFile).
-          withColumnRenamed("station/location", "wslbl").
-          as[CHData])
+        df = df.union(spark.read.schema(dataSchema)
+          .option("header", "true")
+          .option("dateFormat", "yyyyMMdd")
+          .option("sep", ";")
+          .csv(inPath + chDataFile)
+          .withColumnRenamed("tation/location", "wslbl")
+          .as[CHData])
       }
     } // lblList
     if (p == "current") dfR = df.cache() else dfH = df.cache()

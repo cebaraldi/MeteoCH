@@ -24,18 +24,18 @@ object Station extends App {
   Logger.getLogger("org.apache.spark").setLevel(Level.WARN)
 
   // Start spark
-  val spark = SparkSession.builder().
-    master("local[*]").
-    appName("MeteoCH Station").
-    getOrCreate()
+  val spark = SparkSession.builder()
+    .master("local[*]")
+    .appName("MeteoCH Station")
+    .getOrCreate()
   spark.sparkContext.setLogLevel("WARN")
 
   import spark.implicits._
 
   // Load JSON configuration from resources directory
   val cfgJSON = "src/main/resources/cfgXenos_meteoch.json"
-  val cfg = spark.read.option("multiLine", true).
-    json(cfgJSON).toDF().filter(trim('object) === "Station")
+  val cfg = spark.read.option("multiLine", true)
+    .json(cfgJSON).toDF().filter(trim('object) === "Station")
   val inPath = cfg.select('inPath).as[String].collect()(0)
   val chStationFile = cfg.select('chStationFile).as[String].collect()(0)
   val outPath = cfg.select('outPath).as[String].collect()(0)
@@ -59,27 +59,27 @@ object Station extends App {
   ))
 
   // Read data using schema and case class
-  val df = spark.read.schema(stationSchema).
-    option("header", "true").
-    option("dateFormat", "dd.MM.yyyy").
-    option("sep", ";").
-    csv(inPath + chStationFile).
-    drop("URL Previous years (verified data)").
-    drop("URL Current year").
-    withColumnRenamed("Station", "ws").
-    withColumnRenamed("station/location", "wslbl").
-    withColumnRenamed("WIGOS-ID", "wigosid").
-    withColumnRenamed("Data since", "from").
-    withColumnRenamed("Station height m. a. sea level", "height").
-    withColumnRenamed("CoordinatesE", "coordE").
-    withColumnRenamed("CoordinatesN", "coordN").
-    withColumnRenamed("Latitude", "lat").
-    withColumnRenamed("Longitude", "lon").
-    withColumnRenamed("Climate region", "climReg").
-    withColumnRenamed("Canton", "canton").
-    filter('wigosid.isNotNull).as[CHStation].
-    sort('ws).
-    cache()
+  val df = spark.read.schema(stationSchema)
+    .option("header", "true")
+    .option("dateFormat", "dd.MM.yyyy")
+    .option("sep", ";")
+    .csv(inPath + chStationFile)
+    .drop("URL Previous years (verified data)")
+    .drop("URL Current year")
+    .withColumnRenamed("Station", "ws")
+    .withColumnRenamed("station/location", "wslbl")
+    .withColumnRenamed("WIGOS-ID", "wigosid")
+    .withColumnRenamed("Data since", "from")
+    .withColumnRenamed("Station height m. a. sea level", "height")
+    .withColumnRenamed("CoordinatesE", "coordE")
+    .withColumnRenamed("CoordinatesN", "coordN")
+    .withColumnRenamed("Latitude", "lat")
+    .withColumnRenamed("Longitude", "lon")
+    .withColumnRenamed("Climate region", "climReg")
+    .withColumnRenamed("Canton", "canton")
+    .filter('wigosid.isNotNull).as[CHStation]
+    .sort('ws)
+    .cache()
 
   // Write a parquet file
   df.write.mode(SaveMode.Overwrite).parquet(outPath + pqFile)
